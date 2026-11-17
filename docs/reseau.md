@@ -65,9 +65,66 @@ L'hôte Proxmox est membre d'un tailnet et **annonce le sous-réseau du LAN** (r
 
 L'administration (SSH, interfaces Proxmox et PBS) n'est possible que depuis le LAN ou le tailnet.
 
+Le tailnet sert aussi dans l'autre sens : l'hôte y joint un téléphone qui envoie les alertes par SMS (voir [Supervision](supervision.md)).
+
+### Chemins SSH
+
+| Cible | Chemin |
+|---|---|
+| Hôte Proxmox | Direct, par le tailnet ou le LAN |
+| Conteneurs | Depuis l'hôte (`pct exec`), ou en SSH depuis le LAN |
+| VM `debianS` | SSH sur un port non standard, par rebond sur l'hôte |
+| Forge (Git sur SSH) | Port dédié de Forgejo, par rebond sur l'hôte depuis l'extérieur |
+
+## Qui parle à qui
+
+Le pare-feu refuse par défaut tout trafic d'un invité vers un autre. Le tableau liste les seules exceptions, c'est-à-dire tous les flux internes qui existent.
+
+| Destination | Port | Depuis la supervision (105) | Depuis le proxy (108) | Depuis un autre invité | Depuis le LAN / tailnet |
+|---|---|:-:|:-:|:-:|:-:|
+| Hôte — interface Proxmox | 8006 | ✔ | ✔ | — | ✔ |
+| Hôte — passerelle de l'agent (SSH) | 22 | — | — | 113 seulement | ✔ |
+| Hôte — relais SMS | 8787 | ✔ | — | — | — |
+| 101 `files-transfer` | — | ping | — | — | SSH |
+| 103 `git-server` — Forgejo web | 3000 | ✔ | — | 106 (CI) | ✔ |
+| 103 `git-server` — Git sur SSH | 2222 | ✔ | — | — | ✔ |
+| 104 `pbs` | 8007 | ✔ | ✔ | — | ✔ |
+| 105 `monitoring` — Homepage, Kuma | 3000, 3001 | — | ✔ | — | ✔ |
+| 105 `monitoring` — ntfy | 8080 | — | — | tous (jeton requis) | ✔ |
+| 106 `ci-runner` | — | ping | — | — | SSH |
+| 107 `immich` | 2283 | ✔ | ✔ | — | ✔ |
+| 108 `proxy` | 80, 443 | ✔ (443) | — | — | ✔ |
+| 109 `adguard` — DNS | 53 | ✔ | ✔ | tous | ✔ |
+| 109 `adguard` — interface | 80 | ✔ | ✔ | — | ✔ |
+| 110 `syncthing` | 8384, 22000 | ✔ (8384) | ✔ (8384) | — | ✔ |
+| 111 `paperless` | 8000 | ✔ | ✔ | — | ✔ |
+| 112 `jitsi` — web | 8000 | ✔ | — | — | ✔ |
+| 112 `jitsi` — média | 443, 10000/udp | — | — | — | ✔ et **Internet** (redirection de la box) |
+| 113 `ops-agent` — webhook | 8787 | ✔ | — | — | — |
+| 200 `debianS` — SSH, web local | port SSH, 80 | ✔ (SSH) | — | — | ✔ |
+
+À lire ainsi :
+
+- les services publics (101, 103, 112, 200) ne sont **pas** derrière le proxy interne : ils sortent par leur propre tunnel ;
+- le CT 106 et le CT 101 n'offrent aucun port aux autres invités ;
+- le webhook de l'agent IA et le relais SMS ne sont joignables **que** par la supervision, pas même depuis le LAN ;
+- en sortie, les invités ne sont pas filtrés (mises à jour, tunnels, API externes).
+
 ## DNS
 
 AdGuard Home (CT 109) sert de résolveur filtrant pour le LAN et pour les invités. C'est l'un des premiers conteneurs à démarrer (ordre 1, avec PBS).
+
+| Réglage | Valeur |
+|---|---|
+| Résolveurs amont | DNS-over-HTTPS, Cloudflare et Quad9 interrogés **en parallèle** (la réponse la plus rapide gagne) |
+| Secours | Résolveurs classiques des deux mêmes fournisseurs, si le DoH est injoignable |
+| Validation | DNSSEC activé |
+| Cache | Cache optimiste : une réponse expirée est servie tout de suite, puis rafraîchie en arrière-plan |
+| Filtrage | AdGuard DNS filter, HaGeZi Pro |
+| Réécritures | `*.home.…` vers le proxy interne ; le nom d'administration de la box vers la box |
+| Conservation | Journal des requêtes 7 jours, statistiques 30 jours |
+
+La réécriture `*.home` rend les noms internes indépendants d'Internet : même connexion coupée, `photos.home…` continue de résoudre et de fonctionner à la maison. Le certificat, lui, se renouvelle par défi DNS et n'a besoin d'Internet qu'au moment du renouvellement.
 
 ## Ordre de démarrage
 

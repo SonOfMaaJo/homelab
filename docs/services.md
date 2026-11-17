@@ -91,5 +91,39 @@ L'hôte Proxmox ne porte que le minimum :
 
 - **Tailscale** (routeur de sous-réseau) ;
 - **Netdata** et **smartd** (métriques et santé du disque) ;
-- des scripts planifiés : envoi de l'état de santé aux sondes, sauvegarde sur SSD USB, récupération de la sauvegarde Gokapi, contrôle du thin pool, des mises à jour et de l'adresse IP publique ;
-- la **passerelle de l'agent IA** (liste blanche de commandes).
+- des scripts planifiés (tableau ci-dessous) ;
+- la **passerelle de l'agent IA** (liste blanche de commandes) ;
+- le **relais SMS** vers le téléphone sentinelle.
+
+### Tâches planifiées
+
+| Quand | Tâche | Rôle |
+|---|---|---|
+| Toutes les 5 min | `homelab-healthpush` | Contrôles locaux envoyés aux sondes push (capacité, SMART, sauvegardes, CI) |
+| Toutes les 5 min | `tv-watch` | Relevé d'état d'une télévision de la maison, alerte à chaque redémarrage |
+| Toutes les 10 min | `check-public-ip` | Alerte si l'adresse IP publique change |
+| Toutes les heures | `check-thinpool` | Alerte si le thin pool dépasse 80 % |
+| 01:00 | Sauvegarde `vzdump` | Tous les invités vers PBS |
+| 03:00 – 03:30 | Purge et ramasse-miettes PBS | Application de la rétention |
+| 04:00 | `gokapi-backup-pull` | Récupération de l'export chiffré de Gokapi (30 derniers conservés) |
+| 09:05 | `check-updates` | Alerte si de nouvelles mises à jour de l'hôte sont disponibles |
+| Dimanche 05:00 | Vérification PBS | Contrôle d'intégrité des sauvegardes |
+| Au branchement | `usb-backup` | Copie complète sur le SSD USB chiffré |
+
+## Stockage
+
+Un seul disque NVMe de 477 Go, géré par LVM :
+
+| Volume | Taille | Usage |
+|---|---|---|
+| Système de l'hôte | 96 Go | Proxmox VE, modèles de conteneurs, exports |
+| Swap | 16 Go | — |
+| Thin pool | 349 Go | Disques de tous les invités |
+
+Le thin pool est **surréservé** : la somme des disques alloués aux invités dépasse sa taille réelle, parce que seul l'espace réellement écrit est consommé (environ la moitié du pool à la mi-novembre 2026). C'est un choix assumé pour un disque unique, à condition de surveiller le remplissage : un thin pool plein gèle tous les invités d'un coup. D'où deux alertes indépendantes à 80 % (sonde « Capacité » et `check-thinpool`), sur les données comme sur les métadonnées.
+
+Il n'y a **pas de redondance de disque** : la tolérance à la panne repose entièrement sur les sauvegardes (voir [Sauvegardes](sauvegardes.md)).
+
+## Mémoire
+
+L'hôte a 16 Go de mémoire, alors que les plafonds des invités totalisent environ 23,5 Go : là aussi, la somme des plafonds dépasse la mémoire physique, chaque invité n'utilisant qu'une fraction du sien. La sonde « Capacité » alerte si la mémoire disponible de l'hôte passe sous 1 Go.

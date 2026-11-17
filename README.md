@@ -77,11 +77,25 @@ Tous les conteneurs sont **non privilégiés**.
 
 ## Documentation détaillée
 
-- [Réseau](docs/reseau.md) — adressage, exposition publique, proxy interne, DNS, accès distant
-- [Services](docs/services.md) — détail de chaque conteneur et de la VM
+- [Réseau](docs/reseau.md) — adressage, exposition publique, proxy interne, accès distant, matrice des flux, DNS
+- [Services](docs/services.md) — détail de chaque conteneur et de la VM, tâches planifiées, stockage
 - [Sauvegardes](docs/sauvegardes.md) — PBS, SSD USB chiffré, rétention
-- [Sécurité](docs/securite.md) — pare-feu, SSH, gestion des secrets
-- [Supervision et agent IA](docs/supervision.md) — sondes, notifications, réparation automatique encadrée
+- [Sécurité](docs/securite.md) — pare-feu, SSH, gestion des secrets, protections de l'agent IA
+- [Supervision et agent IA](docs/supervision.md) — sondes, canaux d'alerte, réparation automatique encadrée, essais
+- [Exploitation](docs/exploitation.md) — gestes courants : réagir à une alerte, ajouter un invité, restaurer, mettre à jour
+- [Journal des évolutions](docs/journal.md) — chronologie et décisions d'architecture
+
+## Parcours d'une panne
+
+```mermaid
+flowchart LR
+    p[Un service tombe] --> k[Uptime Kuma<br/>le détecte en 1 min]
+    k --> n[Notification ntfy]
+    k --> s[SMS]
+    k --> a[Agent IA]
+    a -->|lit l'état et les journaux,<br/>relance si c'est permis| g[Passerelle<br/>liste blanche]
+    a --> r[Compte rendu :<br/>panne, cause, action, état]
+```
 
 ## Principes
 

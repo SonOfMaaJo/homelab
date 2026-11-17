@@ -30,7 +30,14 @@ flowchart LR
     x[Tout autre flux<br/>invité → invité] -.->|DROP + journal| y[ ]
 ```
 
-Conséquence : un service compromis ne peut pas explorer ses voisins. Côté hôte, les invités sont refusés, sauf le proxy et la supervision vers l'interface web Proxmox, et l'agent IA vers sa passerelle SSH.
+Conséquence : un service compromis ne peut pas explorer ses voisins. Côté hôte, les invités sont refusés, sauf le proxy et la supervision vers l'interface web Proxmox, la supervision vers le relais SMS, et l'agent IA vers sa passerelle SSH.
+
+La liste complète des flux autorisés, port par port, est dans [Réseau — Qui parle à qui](reseau.md#qui-parle-à-qui).
+
+Deux limites assumées de ce modèle :
+
+- **la sortie n'est pas filtrée** : un invité compromis peut toujours joindre Internet (c'est aussi ce qui permet les tunnels et les mises à jour) ;
+- **le LAN est de confiance** : un appareil de la maison atteint les ports de service. Le cloisonnement protège les invités les uns des autres, pas contre le réseau domestique.
 
 Les refus sont journalisés. Tout nouvel invité doit être ajouté au groupe `guests`, recevoir son fichier de règles et avoir le pare-feu activé sur son interface.
 
@@ -59,4 +66,23 @@ Les refus sont journalisés. Tout nouvel invité doit être ajouté au groupe `g
 
 ## Mises à jour
 
-Mises à jour de sécurité automatiques (`unattended-upgrades`) sur les invités ; une sonde signale les mises à jour en attente sur l'hôte.
+Mises à jour de sécurité automatiques (`unattended-upgrades`) sur les invités ; une alerte quotidienne signale les mises à jour en attente sur l'hôte, qui sont appliquées à la main.
+
+## Agent IA
+
+Confier des redémarrages à un modèle de langage est le point le plus sensible de l'installation. Les protections sont empilées, de l'extérieur vers l'intérieur :
+
+| Couche | Protection |
+|---|---|
+| Réseau | Le webhook de l'agent n'est joignable que par le conteneur de supervision |
+| Entrée | Secret dans l'URL ; contenu des alertes traité comme une donnée non fiable |
+| Volume | Quotas d'analyses, anti-doublon, durée maximale d'une analyse |
+| Modèle | Un seul outil autorisé, aucune autre commande |
+| Conteneur | Utilisateur sans privilège, conteneur non privilégié, système de fichiers en lecture seule |
+| Hôte | Clé SSH à commande forcée, liste blanche de verbes, limites de débit, journal |
+
+Seule la dernière couche est considérée comme une frontière de sécurité : les autres réduisent la probabilité d'un incident, celle-là en borne les conséquences. Détail dans [Supervision et agent IA](supervision.md).
+
+## Ce que ce dépôt ne publie pas
+
+Ce dépôt est public. Il décrit des mécanismes, pas des coordonnées : ni adresse IP, ni secret, ni fichier de configuration brut, ni nom d'utilisateur d'administration.
